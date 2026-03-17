@@ -174,6 +174,8 @@ def fetch_data(symbol):
                     df_15m = cached_15m.loc[mask].copy()
                     df_15m.index = pd.to_datetime(df_15m.index).tz_localize(None)
             if not df_15m.empty:
+                # 75-min candles align with NSE trading sessions (9:15–15:30) producing
+                # exactly 5 candles per day, avoiding the partial-candle artefacts of 60-min bars.
                 df_75m = df_15m.resample("75min").agg({
                     "open":   "first",
                     "high":   "max",
