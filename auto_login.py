@@ -72,31 +72,15 @@ class AuthHandler(BaseHTTPRequestHandler):
 
 
 def update_config(access_token):
-    """Update config.json in both scanner directories."""
+    """Update config.json in the repository root (same dir as this script)."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    parent_dir = os.path.dirname(script_dir)
+    config_path = os.path.join(script_dir, "config.json")
     
-    config_paths = [
-        os.path.join(parent_dir, "A_GTF_SWING_SCANNER", "config.json"),
-        os.path.join(parent_dir, "A_GTF_OPTION_SCANNER", "config.json"),
-    ]
+    with open(config_path, "w") as f:
+        json.dump({"access_token": access_token}, f, indent=2)
     
-    # Also update config.json in current directory if it exists
-    local_config = os.path.join(script_dir, "config.json")
-    if local_config not in config_paths:
-        config_paths.append(local_config)
-    
-    updated = []
-    for path in config_paths:
-        if os.path.exists(path):
-            with open(path, "w") as f:
-                json.dump({"access_token": access_token}, f, indent=2)
-            updated.append(path)
-            print(f"  ✅ Updated: {path}")
-        else:
-            print(f"  ⚠️  Not found (skipped): {path}")
-    
-    return updated
+    print(f"  ✅ Updated: {config_path}")
+    return [config_path]
 
 
 def main():
