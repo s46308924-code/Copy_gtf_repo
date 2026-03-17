@@ -14,6 +14,8 @@
 
 import os
 import json
+import time
+import unicodedata
 import pandas as pd
 from datetime import datetime, timedelta
 from fyers_apiv3 import fyersModel
@@ -254,6 +256,8 @@ def download_symbol(symbol_plain, timeframe, history_days, api_limit, access_tok
 # ==================== MAIN ====================
 
 def main():
+    start_time = time.time()
+
     print("=" * 60)
     print("  📦 GTF BULK DATA DOWNLOADER")
     print("=" * 60)
@@ -288,6 +292,7 @@ def main():
     print(f"{'='*60}")
 
     stats_1d = {"up-to-date": 0, "updated": 0, "downloaded": 0, "no-new-data": 0, "failed": 0}
+    candles_1d = 0
 
     for i, sym in enumerate(symbols_1d, 1):
         print(f"\n[{i}/{len(symbols_1d)}] {sym}")
@@ -295,6 +300,7 @@ def main():
             sym, "1D", history_1d_days, API_LIMIT_1D, access_token, data_dir
         )
         stats_1d[status] = stats_1d.get(status, 0) + 1
+        candles_1d += count
 
     # ---- DOWNLOAD 15m DATA ----
     print(f"\n{'='*60}")
@@ -302,6 +308,7 @@ def main():
     print(f"{'='*60}")
 
     stats_15m = {"up-to-date": 0, "updated": 0, "downloaded": 0, "no-new-data": 0, "failed": 0}
+    candles_15m = 0
 
     for i, sym in enumerate(symbols_15m, 1):
         print(f"\n[{i}/{len(symbols_15m)}] {sym}")
@@ -309,15 +316,77 @@ def main():
             sym, "15", HISTORY_15M_DAYS, API_LIMIT_15M, access_token, data_dir
         )
         stats_15m[status] = stats_15m.get(status, 0) + 1
+        candles_15m += count
 
     # ---- SUMMARY ----
-    print(f"\n{'='*60}")
-    print(f"  ✅ DOWNLOAD COMPLETE!")
-    print(f"{'='*60}")
-    print(f"\n1D Summary:  {stats_1d}")
-    print(f"15m Summary: {stats_15m}")
-    print(f"\nCache location: {data_dir}")
-    print("=" * 60)
+    elapsed   = int(time.time() - start_time)
+    mins, sec = divmod(elapsed, 60)
+    time_str  = f"{mins}m {sec}s" if mins else f"{sec}s"
+
+    cache_display = "..." + data_dir[-20:] if len(data_dir) > 23 else data_dir
+
+    def vlen(s):
+        """Visual terminal width: wide emoji/chars count as 2 columns."""
+        w = 0
+        for ch in s:
+            eaw = unicodedata.east_asian_width(ch)
+            w += 2 if eaw in ('W', 'F') else 1
+        return w
+
+    BOX_W  = 38  # total inner width between the two ║ borders
+    CELL_W = 25  # inner cell width between ┌ ┐ / └ ┘ borders
+
+    def outer_line(text=""):
+        pad = BOX_W - vlen(text)
+        return f"║  {text}{' ' * max(0, pad - 2)}║"
+
+    def inner_row(label, value):
+        val_str = str(value)
+        content = f"{label}: {val_str}"
+        pad = CELL_W - vlen(content)
+        row = f"│ {content}{' ' * max(0, pad - 1)}│"
+        opad = BOX_W - vlen(row)
+        return f"║  {row}{' ' * max(0, opad - 2)}║"
+
+    def inner_sep():
+        bar = "┌" + "─" * CELL_W + "┐"
+        opad = BOX_W - vlen(bar)
+        return f"║  {bar}{' ' * max(0, opad - 2)}║"
+
+    def inner_end():
+        bar = "└" + "─" * CELL_W + "┘"
+        opad = BOX_W - vlen(bar)
+        return f"║  {bar}{' ' * max(0, opad - 2)}║"
+
+    print()
+    print(f"╔{'═' * BOX_W}╗")
+    print(outer_line("🎉 DOWNLOAD COMPLETE!"))
+    print(f"╠{'═' * BOX_W}╣")
+    print(outer_line())
+    print(outer_line(f"📊 1D DATA  ({len(symbols_1d)} symbols)"))
+    print(inner_sep())
+    print(inner_row("✅ Downloaded ", stats_1d['downloaded']))
+    print(inner_row("🔄 Updated    ", stats_1d['updated']))
+    print(inner_row("📦 Up-to-date ", stats_1d['up-to-date']))
+    print(inner_row("⏸  No new data", stats_1d['no-new-data']))
+    print(inner_row("❌ Failed     ", stats_1d['failed']))
+    print(inner_row("📈 Candles    ", candles_1d))
+    print(inner_end())
+    print(outer_line())
+    print(outer_line(f"📊 15m DATA ({len(symbols_15m)} symbols)"))
+    print(inner_sep())
+    print(inner_row("✅ Downloaded ", stats_15m['downloaded']))
+    print(inner_row("🔄 Updated    ", stats_15m['updated']))
+    print(inner_row("📦 Up-to-date ", stats_15m['up-to-date']))
+    print(inner_row("⏸  No new data", stats_15m['no-new-data']))
+    print(inner_row("❌ Failed     ", stats_15m['failed']))
+    print(inner_row("📈 Candles    ", candles_15m))
+    print(inner_end())
+    print(outer_line())
+    print(outer_line(f"⏱  Time  : {time_str}"))
+    print(outer_line(f"📁 Cache : {cache_display}"))
+    print(outer_line())
+    print(f"╚{'═' * BOX_W}╝")
 
 
 if __name__ == "__main__":
