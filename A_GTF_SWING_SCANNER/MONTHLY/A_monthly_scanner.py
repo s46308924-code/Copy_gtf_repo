@@ -135,13 +135,50 @@ def fetch_data(symbol):
     try:
         cached = load_cached_data(symbol, DAILY_TF)
         if cached is not None and len(cached) > 0:
-            last_date = cached.index[-1].date()
+            first_date = cached.index[0].date()
+            last_date  = cached.index[-1].date()
             if last_date >= end - timedelta(days=1):
-                mask   = (cached.index.date >= start) & (cached.index.date <= end)
-                result = cached.loc[mask].copy()
-                if not result.empty:
-                    result.index = pd.to_datetime(result.index).tz_localize(None)
-                    return result
+                if first_date <= start + timedelta(days=7):
+                    mask   = (cached.index.date >= start) & (cached.index.date <= end)
+                    result = cached.loc[mask].copy()
+                    if not result.empty:
+                        result.index = pd.to_datetime(result.index).tz_localize(None)
+                        return result
+                else:
+                    print(f"📥 Extending history: fetching {start} to {first_date}")
+                    old_dfs = []
+                    cur = start
+                    while cur < first_date:
+                        cur_end = min(cur + timedelta(days=API_DAY_LIMIT), first_date - timedelta(days=1))
+                        try:
+                            df_old_chunk = fetch_historical_data(
+                                symbol, DAILY_TF,
+                                cur.strftime("%Y-%m-%d"),
+                                cur_end.strftime("%Y-%m-%d"),
+                                ACCESS_TOKEN
+                            )
+                            if df_old_chunk is not None and not df_old_chunk.empty:
+                                old_dfs.append(df_old_chunk)
+                        except Exception:
+                            pass
+                        cur = cur_end + timedelta(days=1)
+                    if old_dfs:
+                        df_old    = pd.concat(old_dfs)
+                        df_merged = pd.concat([df_old, cached])
+                        df_merged = df_merged[~df_merged.index.duplicated()]
+                        df_merged.sort_index(inplace=True)
+                        save_cached_data(symbol, DAILY_TF, df_merged)
+                        mask   = (df_merged.index.date >= start) & (df_merged.index.date <= end)
+                        result = df_merged.loc[mask].copy()
+                        if not result.empty:
+                            result.index = pd.to_datetime(result.index).tz_localize(None)
+                            return result
+                    else:
+                        mask   = (cached.index.date >= start) & (cached.index.date <= end)
+                        result = cached.loc[mask].copy()
+                        if not result.empty:
+                            result.index = pd.to_datetime(result.index).tz_localize(None)
+                            return result
             else:
                 fetch_start = last_date + timedelta(days=1)
                 new_dfs = []

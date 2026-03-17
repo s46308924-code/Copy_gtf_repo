@@ -103,6 +103,20 @@ def load_cached_data(symbol, timeframe):
     except Exception:
         return None
 
+def save_cached_data(symbol, timeframe, df):
+    """Save data to parquet cache."""
+    data_dir = find_data_dir()
+    if data_dir is None:
+        return
+    tf_folder = "1D" if timeframe in ["1D", "D"] else "15m"
+    folder = os.path.join(data_dir, tf_folder)
+    os.makedirs(folder, exist_ok=True)
+    parquet_path = os.path.join(folder, f"{safe_filename(symbol)}.parquet")
+    try:
+        df.to_parquet(parquet_path)
+    except Exception:
+        pass
+
 # ==================================================
 # FETCH PRICE DATA
 # ==================================================
@@ -118,6 +132,31 @@ def fetch_price_data(symbol, anchor_date):
     try:
         cached = load_cached_data(symbol, DAILY_TF)
         if cached is not None and len(cached) > 0:
+            first_date = cached.index[0].date()
+            if first_date > start + timedelta(days=7):
+                old_dfs = []
+                cur = start
+                while cur < first_date:
+                    cur_end = min(cur + timedelta(days=MAX_DAYS_PER_CALL), first_date - timedelta(days=1))
+                    try:
+                        df_old_chunk = fetch_historical_data(
+                            symbol, DAILY_TF,
+                            cur.strftime("%Y-%m-%d"),
+                            cur_end.strftime("%Y-%m-%d"),
+                            ACCESS_TOKEN
+                        )
+                        if df_old_chunk is not None and not df_old_chunk.empty:
+                            old_dfs.append(df_old_chunk)
+                    except Exception:
+                        pass
+                    cur = cur_end + timedelta(days=1)
+                if old_dfs:
+                    df_old    = pd.concat(old_dfs)
+                    df_merged = pd.concat([df_old, cached])
+                    df_merged = df_merged[~df_merged.index.duplicated()]
+                    df_merged.sort_index(inplace=True)
+                    save_cached_data(symbol, DAILY_TF, df_merged)
+                    cached = df_merged
             mask   = (cached.index.date >= start) & (cached.index.date <= end)
             result = cached.loc[mask].copy()
             if not result.empty:

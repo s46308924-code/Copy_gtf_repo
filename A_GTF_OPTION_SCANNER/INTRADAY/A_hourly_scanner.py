@@ -137,11 +137,44 @@ def fetch_data(symbol):
     try:
         cached_15m = load_cached_data(symbol, "15")
         if cached_15m is not None and len(cached_15m) > 0:
-            last_date = cached_15m.index[-1].date()
+            first_date = cached_15m.index[0].date()
+            last_date  = cached_15m.index[-1].date()
             if last_date >= end - timedelta(days=1):
-                mask = (cached_15m.index.date >= start) & (cached_15m.index.date <= end)
-                df_15m = cached_15m.loc[mask].copy()
-                df_15m.index = pd.to_datetime(df_15m.index).tz_localize(None)
+                if first_date <= start + timedelta(days=7):
+                    mask = (cached_15m.index.date >= start) & (cached_15m.index.date <= end)
+                    df_15m = cached_15m.loc[mask].copy()
+                    df_15m.index = pd.to_datetime(df_15m.index).tz_localize(None)
+                else:
+                    print(f"📥 Extending history: fetching {start} to {first_date}")
+                    old_dfs = []
+                    cur = start
+                    while cur < first_date:
+                        cur_end = min(cur + timedelta(days=API_LIMIT), first_date - timedelta(days=1))
+                        try:
+                            df_old_chunk = fetch_historical_data(
+                                symbol, "15",
+                                cur.strftime("%Y-%m-%d"),
+                                cur_end.strftime("%Y-%m-%d"),
+                                ACCESS_TOKEN
+                            )
+                            if df_old_chunk is not None and not df_old_chunk.empty:
+                                old_dfs.append(df_old_chunk)
+                        except Exception:
+                            pass
+                        cur = cur_end + timedelta(days=1)
+                    if old_dfs:
+                        df_old     = pd.concat(old_dfs)
+                        df_merged  = pd.concat([df_old, cached_15m])
+                        df_merged  = df_merged[~df_merged.index.duplicated()]
+                        df_merged.sort_index(inplace=True)
+                        save_cached_data(symbol, "15", df_merged)
+                        mask  = (df_merged.index.date >= start) & (df_merged.index.date <= end)
+                        df_15m = df_merged.loc[mask].copy()
+                        df_15m.index = pd.to_datetime(df_15m.index).tz_localize(None)
+                    else:
+                        mask  = (cached_15m.index.date >= start) & (cached_15m.index.date <= end)
+                        df_15m = cached_15m.loc[mask].copy()
+                        df_15m.index = pd.to_datetime(df_15m.index).tz_localize(None)
             else:
                 fetch_start = last_date + timedelta(days=1)
                 new_dfs = []

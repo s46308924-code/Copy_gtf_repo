@@ -148,11 +148,44 @@ def download_symbol(symbol_plain, timeframe, history_days, api_limit, access_tok
     cached = load_parquet(parquet_path)
 
     if cached is not None and len(cached) > 0:
-        last_date = cached.index[-1].date()
+        first_date = cached.index[0].date()
+        last_date  = cached.index[-1].date()
+        required_start = full_start
 
         if last_date >= today - timedelta(days=1):
-            print(f"    ✅ UP-TO-DATE (last: {last_date})")
-            return "up-to-date", len(cached)
+            if first_date <= required_start + timedelta(days=7):
+                print(f"    ✅ UP-TO-DATE (range: {first_date} → {last_date})")
+                return "up-to-date", len(cached)
+            else:
+                # End is fresh but cache doesn't go back far enough — extend history
+                print(f"    📥 Extending history: fetching {required_start} to {first_date}")
+                old_dfs = []
+                cur = required_start
+                while cur < first_date:
+                    cur_end = min(cur + timedelta(days=api_limit), first_date - timedelta(days=1))
+                    try:
+                        df_chunk = fetch_historical_data(
+                            fyers_sym, timeframe,
+                            cur.strftime("%Y-%m-%d"),
+                            cur_end.strftime("%Y-%m-%d"),
+                            access_token
+                        )
+                        if df_chunk is not None and not df_chunk.empty:
+                            old_dfs.append(df_chunk)
+                    except Exception as e:
+                        print(f"    ⚠️  Chunk error {cur} → {cur_end}: {e}")
+                    cur = cur_end + timedelta(days=1)
+                if old_dfs:
+                    df_old    = pd.concat(old_dfs)
+                    df_merged = pd.concat([df_old, cached])
+                    df_merged = df_merged[~df_merged.index.duplicated()]
+                    df_merged.sort_index(inplace=True)
+                    save_parquet(parquet_path, df_merged)
+                    print(f"    ✅ History extended → {len(df_merged)} candles saved")
+                    return "updated", len(df_merged)
+                else:
+                    print(f"    ✅ UP-TO-DATE (history extension returned no data)")
+                    return "up-to-date", len(cached)
 
         # Incremental update — fetch only missing data
         fetch_start = last_date + timedelta(days=1)
