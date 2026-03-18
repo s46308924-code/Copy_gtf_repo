@@ -339,7 +339,9 @@ for symbol, df_symbol_zones in df_zones.groupby("symbol"):
         y=df_slice["volume"],
         marker_color=vol_colors,
         name="Volume",
-        yaxis="y2"
+        yaxis="y2",
+        xaxis="x2",
+        width=0.5
     ))
 
     # ==================================================
@@ -415,13 +417,15 @@ for symbol, df_symbol_zones in df_zones.groupby("symbol"):
             font=dict(size=64),
             x=0.01
         ),
-        xaxis=dict(type="category", tickfont=dict(size=34)),
+        xaxis=dict(type="category", tickfont=dict(size=34), showticklabels=False, anchor='y'),
+        xaxis2=dict(type="category", tickfont=dict(size=34), showticklabels=True, side='bottom', anchor='y2', matches='x'),
         yaxis=dict(tickfont=dict(size=34), domain=[0.25, 1.0]),
         yaxis2=dict(
             tickfont=dict(size=24),
             domain=[0.0, 0.20],
             showgrid=False,
             zeroline=False,
+            anchor='x2',
         ),
         xaxis_rangeslider_visible=False,
         template="plotly_white",
