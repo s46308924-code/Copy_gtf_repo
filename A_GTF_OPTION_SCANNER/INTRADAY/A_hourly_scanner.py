@@ -10,7 +10,7 @@ from fyers_data import fetch_historical_data
 OUTPUT_DIR   = "output/hourly"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-TIMEFRAME = "60"          # 🔒 HOURLY
+TIMEFRAME = "75"          # 🔒 75-MIN (5 candles/day, NSE aligned)
 API_LIMIT = 90            # ✅ FIX-1 (hourly safe window)
 HISTORY_YEARS = 2/12        # ✅ FIX-2 (7 → 2 years)
 
