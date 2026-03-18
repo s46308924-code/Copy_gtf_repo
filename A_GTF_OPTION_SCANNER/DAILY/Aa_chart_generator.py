@@ -243,6 +243,20 @@ for symbol, df_symbol_zones in df_zones.groupby("symbol"):
         name="Price"
     ))
 
+    # Volume bars — color matches candle, 15% opacity
+    vol_colors = [
+        "rgba(0,128,0,0.15)" if c >= o else "rgba(0,0,0,0.15)"
+        for o, c in zip(df_slice["open"], df_slice["close"])
+    ]
+
+    fig.add_trace(go.Bar(
+        x=df_slice["x"],
+        y=df_slice["volume"],
+        marker_color=vol_colors,
+        name="Volume",
+        yaxis="y2"
+    ))
+
     # ==================================================
     # DRAW ALL ZONES FOR THIS SYMBOL
     # ==================================================
@@ -307,7 +321,13 @@ for symbol, df_symbol_zones in df_zones.groupby("symbol"):
             x=0.01
         ),
         xaxis=dict(type="category", tickfont=dict(size=34)),
-        yaxis=dict(tickfont=dict(size=34)),
+        yaxis=dict(tickfont=dict(size=34), domain=[0.25, 1.0]),
+        yaxis2=dict(
+            tickfont=dict(size=24),
+            domain=[0.0, 0.20],
+            showgrid=False,
+            zeroline=False,
+        ),
         xaxis_rangeslider_visible=False,
         template="plotly_white",
         width=3200,
